@@ -96,7 +96,7 @@ class DataProvider:
         function_size = 1 << input_size
         function_table = [random.randint(0, 1) for _ in range(function_size)]
         total_input_size = input_size+random_input_size
-        input_bit_indexes = {x:(1<<i) for i,x in enumerate(torch.randperm(total_input_size)[:input_size])}
+        input_bit_indexes = {x.item():(1<<i) for i,x in enumerate(torch.randperm(total_input_size)[:input_size])}
         data = torch.FloatTensor(data_size, total_input_size)
         target = torch.FloatTensor(data_size)
         for i in range(data_size):
