@@ -24,8 +24,8 @@ class CpuSpeedModel(nn.Module):
 
 class CpuSpeed:
     def calc_time_mult(self):
-        batch_size = 64
-        number_of_batches = 10
+        batch_size = 256
+        number_of_batches = 100
         input_size = 10
         output_size = 10
         model = CpuSpeedModel(input_size, output_size)
@@ -34,22 +34,20 @@ class CpuSpeed:
         torch.manual_seed(1)
         data.uniform_(-1.0, 1.0)
         target.uniform_(-1.0, 1.0)
-        dataset = torch.utils.data.TensorDataset(data, target)
-        data_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
         start_time = time.time()
         optimizer = optim.SGD(model.parameters(), lr=0.00001)
-        for data, target in data_loader:
-            data = data
-            target = target
+        for ind in range(number_of_batches):
+            data_batch = data[batch_size*ind:batch_size*(ind+1)]
+            target_batch = target[batch_size*ind:batch_size*(ind+1)]
             optimizer.zero_grad()
-            output = model(data)
-            loss = F.mse_loss(output, target)
+            output = model(data_batch)
+            loss = F.mse_loss(output, target_batch)
             loss.backward()
             # optimizer.step()
         end_time = time.time()
         steps_per_second = number_of_batches/(end_time-start_time)
-        return steps_per_second/1111.0
+        return steps_per_second/1200.0
 
 class CaseData:
     def __init__(self, number, limits, train_data, test_data):

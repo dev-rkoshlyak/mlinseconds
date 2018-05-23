@@ -8,6 +8,7 @@ class GridSearch():
         self.solution.__grid_search__ = self
         self.randomSearch = randomSearch
         self.writer = None
+        self.enabled = True
 
     def get_writer(self):
         if self.writer is None:
@@ -37,7 +38,7 @@ class GridSearch():
         grid_str = ''
         for attr, attr_value in grid_choice.items():
             if len(grid_str):
-                grid_str += '_'
+                grid_str += '|'
             grid_str += attr + ':' + str(attr_value)
         return grid_str
 
@@ -64,8 +65,13 @@ class GridSearch():
             setattr(self.solution, attr, attr_value)
 
     def search_model(self, case_data, solution, solution_manager):
+        if self.enabled == False:
+            return
         grid_attributes = self.get_grid_attributes(self.solution)
         grid_size = self.calc_grid_size(grid_attributes)
+        if grid_size == 1:
+            self.enabled = False
+            return
         grid_choice_history = {}
         while len(grid_choice_history) <  grid_size:
             choice_str, grid_choice = self.get_grid_choice(grid_attributes, grid_choice_history)
@@ -77,6 +83,8 @@ class GridSearch():
         exit(0)
 
     def log_step_value(self, name, value, step):
+        if self.enabled == False:
+            return
         self.get_writer().add_scalars(name, {self.choice_str: value}, step)
 
     @classmethod
