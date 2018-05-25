@@ -10,6 +10,10 @@ class GridSearch():
         self.writer = None
         self.enabled = True
 
+    def set_enabled(self, enabled):
+        self.enabled = enabled
+        return self
+
     def get_writer(self):
         if self.writer is None:
             self.writer = SummaryWriter()
@@ -65,27 +69,22 @@ class GridSearch():
             setattr(self.solution, attr, attr_value)
 
     def search_model(self, case_data, solution, solution_manager):
-        if self.enabled == False:
-            return
-        grid_attributes = self.get_grid_attributes(self.solution)
-        grid_size = self.calc_grid_size(grid_attributes)
-        if grid_size == 1:
-            self.enabled = False
-            return
-        grid_choice_history = {}
-        while len(grid_choice_history) <  grid_size:
-            choice_str, grid_choice = self.get_grid_choice(grid_attributes, grid_choice_history)
-            self.set_grid_choice(choice_str, grid_choice)
-            solution_manager.train_model(solution, case_data)
-            grid_choice_history[choice_str] = True
-        print(solution_manager.accepted_string("[SEARCH COMPLETED]"))
-        print("Specify case_number, if you want to search over other case data")
-        exit(0)
+        if self.enabled:
+            grid_attributes = self.get_grid_attributes(self.solution)
+            grid_size = self.calc_grid_size(grid_attributes)
+            grid_choice_history = {}
+            while len(grid_choice_history) <  grid_size:
+                choice_str, grid_choice = self.get_grid_choice(grid_attributes, grid_choice_history)
+                self.set_grid_choice(choice_str, grid_choice)
+                solution_manager.train_model(solution, case_data)
+                grid_choice_history[choice_str] = True
+            print(solution_manager.accepted_string("[SEARCH COMPLETED]"))
+            print("Specify case_number, if you want to search over other case data")
+            exit(0)
 
     def log_step_value(self, name, value, step):
-        if self.enabled == False:
-            return
-        self.get_writer().add_scalars(name, {self.choice_str: value}, step)
+        if self.enabled:
+            self.get_writer().add_scalars(name, {self.choice_str: value}, step)
 
     @classmethod
     def run_case(self, case_data, solution, solution_manager):
