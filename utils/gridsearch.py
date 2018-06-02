@@ -42,8 +42,8 @@ class GridSearch():
         grid_str = ''
         for attr, attr_value in grid_choice.items():
             if len(grid_str):
-                grid_str += '|'
-            grid_str += attr + ':' + str(attr_value)
+                grid_str += ' '
+            grid_str += attr + '-' + str(attr_value)
         return grid_str
 
     def get_grid_choice(self, grid_attributes, grid_choice_history):
