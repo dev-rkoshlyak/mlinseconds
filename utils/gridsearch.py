@@ -3,6 +3,9 @@ from tensorboardX import SummaryWriter
 
 class GridSearch():
     GRID_LIST_SUFFIX = '_grid'
+    GRID_PARAM_SEPARATOR = ' '
+    GRID_VALUE_SEPARATOR = '-'
+
     def __init__(self, solution, randomSearch = True):
         self.solution = solution
         self.solution.__grid_search__ = self
@@ -42,8 +45,8 @@ class GridSearch():
         grid_str = ''
         for attr, attr_value in grid_choice.items():
             if len(grid_str):
-                grid_str += ' '
-            grid_str += attr + '-' + str(attr_value)
+                grid_str += GridSearch.GRID_PARAM_SEPARATOR
+            grid_str += attr + GridSearch.GRID_VALUE_SEPARATOR + str(attr_value)
         return grid_str
 
     def get_grid_choice(self, grid_attributes, grid_choice_history):
@@ -84,7 +87,12 @@ class GridSearch():
 
     def log_step_value(self, name, value, step):
         if self.enabled:
-            self.get_writer().add_scalars(name, {self.choice_str: value}, step)
+            if type(value) == dict:
+                values = {self.choice_str + GridSearch.GRID_PARAM_SEPARATOR + key : val for key, val in value.items()}
+            else:
+                values = {self.choice_str: value}
+
+            self.get_writer().add_scalars(name, values, step)
 
     @classmethod
     def run_case(self, case_data, solution, solution_manager):

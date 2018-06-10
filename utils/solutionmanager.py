@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from gridsearch import GridSearch
+from contextlib import contextmanager
 
 class CpuSpeedModel(nn.Module):
     def __init__(self, input_size, output_size):
@@ -70,6 +70,50 @@ class CaseData:
     def get_limits(self):
         return self.limits
 
+class Timer():
+    def __init__(self, time_limit, time_mult):
+        self.time_limit = time_limit
+        self.time_mult = time_mult
+        self.start_time = time.time()
+        self.pause_time = 0.0
+
+    @contextmanager
+    def pause(self):
+        pause_start = time.time()
+        yield None
+        pause_end = time.time()
+        self.pause_time += pause_end-pause_start
+
+    def get_time_left(self):
+        return self.time_limit - self.get_execution_time()
+
+    def get_execution_time(self):
+        return (time.time() - self.start_time - self.pause_time) * self.time_mult
+
+    def get_pause_time(self):
+        return self.pause_time
+
+
+class TrainingContext():
+    def __init__(self, case_data, timer):
+        self.case_data = case_data
+        self.timer = timer
+        self.case_data_accessed = False
+
+    def get_case_data(self):
+        self.case_data_accessed = True
+        return self.case_data
+
+    def get_timer(self):
+        return self.timer
+
+    def get_reject_reason(self):
+        if self.timer.pause_time > 0.0:
+            return "Timer paused"
+        if self.case_data_accessed:
+            return "Case data accessed"
+        return None
+
 class SolutionManager():
     HINT_YELLOW = '\033[93m'
     ACCEPTED_GREEN = '\033[92m'
@@ -120,20 +164,22 @@ class SolutionManager():
         data, target = case_data.train_data
         cpuSpeed = CpuSpeed()
         time_mult = cpuSpeed.calc_time_mult()
-        start_time = time.time()
         torch.manual_seed(case_data.number)
+        timer = Timer(limits.time_limit, time_mult)
         model = solution.create_model(input_size, output_size)
-        step = solution.train_model(start_time+limits.time_limit/time_mult, model, data, target)
-        end_time = time.time()
-        execution_time = (end_time-start_time)*time_mult
-        return step, execution_time, model
+        context = TrainingContext(case_data, timer)
+        step = solution.train_model(model, data, target, context)
+        execution_time = timer.get_execution_time()
+        reject_reason = context.get_reject_reason()
+        return step, execution_time, reject_reason, model
 
     def run_case(self, case_data):
         solution = self.config.get_solution()
         # grid search integration
-        GridSearch.run_case(case_data, solution, self)
+        if '__grid_search__' in dir(solution) is not None:
+            solution.__grid_search__.search_model(case_data, solution, self)
 
-        step, execution_time, model = self.train_model(solution, case_data)
+        step, execution_time, reject_reason, model = self.train_model(solution, case_data)
         model_size = self.calc_model_size(model)
         model.eval()
         data, target = case_data.train_data
@@ -144,6 +190,7 @@ class SolutionManager():
                 'case': case_data.number,
                 'step': step,
                 'time': execution_time,
+                'reject_reason': reject_reason,
                 'size': model_size,
                 'trainStat': train_stat,
                 'testStat': test_stat
@@ -173,6 +220,7 @@ class SolutionManager():
         step = r['step']
         size = r['size']
         time = r['time']
+        reject_reason = r['reject_reason']
         train_loss = r['trainStat']['loss']
         train_correct = r['trainStat']['correct']
         train_total = r['trainStat']['total']
@@ -195,6 +243,8 @@ class SolutionManager():
             print(self.rejected_string("[REJECTED]")+": TIME LIMIT EXCEEDED: Time={:.1f} Time Limit={:.1f}".format(time, limits.time_limit))
         elif test_ratio < limits.test_limit:
             print(self.rejected_string("[REJECTED]")+": MODEL DID NOT LEARN: Learn ratio={}/{}".format(test_ratio, limits.test_limit))
+        elif reject_reason is not None:
+            print(self.rejected_string("[REJECTED]")+": " + reject_reason)
         else:
             r['accepted'] = True
             print(self.accepted_string("[OK]"))

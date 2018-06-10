@@ -36,12 +36,12 @@ class Solution():
         return SolutionModel(input_size, output_size)
 
     # Return number of steps used
-    def train_model(self, time_limit, model, train_data, train_target):
+    def train_model(self, model, train_data, train_target, context):
         step = 0
         # Put model in train mode
         model.train()
         while True:
-            time_left = time_limit - time.time()
+            time_left = context.get_timer().get_time_left()
             # No more time left, stop training
             if time_left < 0.1:
                 break
@@ -109,7 +109,7 @@ class DataProvider:
 
 class Config:
     def __init__(self):
-        self.max_samples = 1000
+        self.max_samples = 10000
 
     def get_data_provider(self):
         return DataProvider()
