@@ -206,6 +206,9 @@ class SolutionManager():
             print(SolutionManager.colored_string(s, SolutionManager.HINT_YELLOW))
 
 
+    def hint_string(self, s):
+        return self.colored_string(s, SolutionManager.HINT_YELLOW)
+
     def rejected_string(self, s):
         return self.colored_string(s, SolutionManager.REJECTED_RED)
 
@@ -289,6 +292,9 @@ class SolutionManager():
         print("Average steps = {:.3f}".format(step_mean))
         print("Average time = {:.3f}/{:.3f}".format(time_mean, time_limit_mean))
         print("Average size = {:.3f}/{:.3f}".format(size_mean, size_limit_mean))
-        print(self.accepted_string("[ACCEPTED]")+" you can submit now your score")
-        print("In order to submit just do a Facebook comment with your score")
+        if case_number == -1:
+            print(self.accepted_string("[ACCEPTED]")+" you can submit now your score")
+            print("In order to submit just do a Facebook comment with your score")
+        else:
+            print(self.hint_string("[GOOD]")+" test passed, try to run on all tests")
 
