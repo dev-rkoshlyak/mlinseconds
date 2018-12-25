@@ -92,27 +92,39 @@ class DataProvider:
         self.number_of_cases = 10
 
     def create_data(self, data_size, input_size, random_input_size, seed):
-        random.seed(seed)
+        torch.manual_seed(seed)
         function_size = 1 << input_size
-        function_table = [random.randint(0, 1) for _ in range(function_size)]
-        total_input_size = input_size+random_input_size
-        input_bit_indexes = {x.item():(1<<i) for i,x in enumerate(torch.randperm(total_input_size)[:input_size])}
-        data = torch.FloatTensor(data_size, total_input_size)
-        target = torch.FloatTensor(data_size)
-        for i in range(data_size):
-            fun_ind = i%len(function_table)
-            fun_value = function_table[fun_ind]
-            for j in range(total_input_size):
-                input_bit = random.randint(0, 1)
-                if j in input_bit_indexes:
-                    input_bit = fun_ind&1
-                    fun_ind = fun_ind >> 1
-                data[i,j] = float(input_bit)
-            target[i] = float(fun_value)
+        function_input = torch.ByteTensor(function_size, input_size)
+        for i in range(function_input.size(0)):
+            fun_ind = i
+            for j in range(function_input.size(1)):
+                input_bit = fun_ind&1
+                fun_ind = fun_ind >> 1
+                function_input[i][j] = input_bit
+        function_output = torch.ByteTensor(function_size).random_(0, 2)
+
+        if data_size % function_size != 0:
+            raise "Data gen error"
+
+        data_input = torch.ByteTensor(data_size, input_size).view(-1, function_size, input_size)
+        target = torch.ByteTensor(data_size).view(-1, function_size)
+        for i in range(data_input.size(0)):
+            data_input[i] = function_input
+            target[i] = function_output
+        data_input = data_input.view(data_size, input_size)
+        target = target.view(data_size)
+        data_random = torch.ByteTensor(data_size, random_input_size).random_(0, 2)
+        if random_input_size > 0:
+            data_random = torch.ByteTensor(data_size, random_input_size).random_(0, 2)
+            data = torch.cat([data_input, data_random], dim=1)
+        else:
+            data = data_input
+        perm = torch.randperm(data.size(1))
+        data = data[:,perm]
         perm = torch.randperm(data.size(0))
         data = data[perm]
         target = target[perm]
-        return (data, target.view(-1, 1))
+        return (data.float(), target.view(-1, 1).float())
 
     def create_case_data(self, case):
         data_size = 256*32
