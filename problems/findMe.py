@@ -113,7 +113,6 @@ class DataProvider:
             target[i] = function_output
         data_input = data_input.view(data_size, input_size)
         target = target.view(data_size)
-        data_random = torch.ByteTensor(data_size, random_input_size).random_(0, 2)
         if random_input_size > 0:
             data_random = torch.ByteTensor(data_size, random_input_size).random_(0, 2)
             data = torch.cat([data_input, data_random], dim=1)
