@@ -15,11 +15,11 @@ class CpuSpeedModel(nn.Module):
 
     def forward(self, x):
         x = self.linear1(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         x = self.linear2(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         x = self.linear3(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
 
 class CpuSpeed:
@@ -58,6 +58,10 @@ class CaseData:
         self.description = None
         self.input_size = train_data[0][0].view(-1).size()[0]
         self.output_size = 1
+
+    def set_input_size(self, input_size):
+        self.input_size = input_size
+        return self
 
     def set_description(self, description):
         self.description = description
@@ -140,17 +144,23 @@ class SolutionManager():
             data = self.sampleData(data, self.config.max_samples)
             target = self.sampleData(target, self.config.max_samples)
             output = model(data)
-            if output[0].size()[0] == 1:
-                predict = output.round()
-            else:
-                predict = output.max(1, keepdim=True)[1]
+            try:
+                predict = model.calc_predict(output)
+            except AttributeError:
+                if output[0].size()[0] == 1:
+                    predict = output.round()
+                else:
+                    predict = output.max(1, keepdim=True)[1]
             # Number of correct predictions
-            correct = predict.eq(target.view_as(predict)).long().sum()
+            correct = target.eq(predict.data.view_as(target)).long().sum()
             total = target.view(-1).size(0)
-            if output[0].size(0) == 1:
-                loss = F.mse_loss(output, target)
-            else:
-                loss = F.nll_loss(output, target)
+            try:
+                loss = model.calc_loss(output, target)
+            except AttributeError:
+                if output[0].size(0) == 1:
+                    loss = F.mse_loss(output, target)
+                else:
+                    loss = F.nll_loss(output, target)
             return {
                     'loss': loss.item(),
                     'correct': correct.item(),
