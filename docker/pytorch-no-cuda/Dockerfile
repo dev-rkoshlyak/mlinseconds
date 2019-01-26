@@ -18,10 +18,11 @@ RUN curl -o ~/miniconda.sh -O  https://repo.continuum.io/miniconda/Miniconda3-la
      rm ~/miniconda.sh && \
      /opt/conda/bin/conda install -y python=$PYTHON_VERSION && \
      /opt/conda/bin/conda install -y pytorch-cpu=$PYTORCH_VERSION torchvision-cpu=$VISION_VERSION -c pytorch && \
-     /opt/conda/bin/conda clean -ya && \
-     pip install tensorboard tensorboardX
+     /opt/conda/bin/conda clean -ya
 
 ENV PATH /opt/conda/bin:$PATH
+
+RUN pip install tensorboard tensorboardX
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
