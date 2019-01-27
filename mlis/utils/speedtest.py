@@ -49,6 +49,7 @@ class SpeedCalculator:
         hidden_size = 100
         data = torch.FloatTensor(batch_size*number_of_batches, input_size)
         target = torch.FloatTensor(batch_size*number_of_batches, output_size)
+        model = LinearModel(input_size, output_size, hidden_size)
         if use_gpu:
             model = model.cuda()
             data = data.cuda()
@@ -57,9 +58,8 @@ class SpeedCalculator:
         data.uniform_(-1.0, 1.0)
         target.uniform_(-1.0, 1.0)
 
-        start_time = time.time()
-        model = LinearModel(input_size, output_size, hidden_size)
         optimizer = optim.SGD(model.parameters(), lr=0.00001)
+        start_time = time.time()
         for ind in range(number_of_batches):
             data_batch = data[batch_size*ind:batch_size*(ind+1)]
             target_batch = target[batch_size*ind:batch_size*(ind+1)]
@@ -84,9 +84,9 @@ class SpeedCalculator:
         input_size = 10
         output_size = 40
         hidden_size = 100
-        model = ConvolModel()
         data = torch.FloatTensor(batch_size*number_of_batches, 1, 28, 28)
         target = torch.FloatTensor(batch_size*number_of_batches, output_size)
+        model = ConvolModel()
         if use_gpu:
             model = model.cuda()
             data = data.cuda()
