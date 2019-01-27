@@ -39,12 +39,20 @@ class SpeedCalculator:
     def calc_linear_time_mult(self, use_gpu = False):
         batch_size = 256
         number_of_batches = 100
+        expected_steps_per_second = 1000.0
+        if use_gpu:
+            batch_size *= 10
+            expected_steps_per_second /= 10
+            number_of_batches *= 10
         input_size = 10
         output_size = 10
         hidden_size = 100
-        expected_steps_per_second = 1000.0
         data = torch.FloatTensor(batch_size*number_of_batches, input_size)
         target = torch.FloatTensor(batch_size*number_of_batches, output_size)
+        if use_gpu:
+            model = model.cuda()
+            data = data.cuda()
+            target = target.cuda()
         torch.manual_seed(1)
         data.uniform_(-1.0, 1.0)
         target.uniform_(-1.0, 1.0)
@@ -68,23 +76,27 @@ class SpeedCalculator:
     def calc_convol_time_mult(self, use_gpu = False):
         batch_size = 256
         number_of_batches = 100
+        expected_steps_per_second = 48.0
+        if use_gpu:
+            batch_size *= 10
+            expected_steps_per_second /= 10
+            number_of_batches *= 10
         input_size = 10
         output_size = 40
         hidden_size = 100
-        expected_steps_per_second = 48.0
+        model = ConvolModel()
         data = torch.FloatTensor(batch_size*number_of_batches, 1, 28, 28)
         target = torch.FloatTensor(batch_size*number_of_batches, output_size)
-        torch.manual_seed(1)
-        data.uniform_(-1.0, 1.0)
-        target.uniform_(-1.0, 1.0)
-
-        start_time = time.time()
-        model = ConvolModel()
         if use_gpu:
             model = model.cuda()
             data = data.cuda()
             target = target.cuda()
+        torch.manual_seed(1)
+        data.uniform_(-1.0, 1.0)
+        target.uniform_(-1.0, 1.0)
+
         optimizer = optim.SGD(model.parameters(), lr=0.00001)
+        start_time = time.time()
         for ind in range(number_of_batches):
             data_batch = data[batch_size*ind:batch_size*(ind+1)]
             target_batch = target[batch_size*ind:batch_size*(ind+1)]
@@ -105,17 +117,13 @@ class SpeedTest():
     def print_speed_report(self):
         speed_calculator = SpeedCalculator()
         linear_time_mult = speed_calculator.calc_linear_time_mult()
-        convol_time_mult = speed_calculator.calc_convol_time_mult()
         print("Linear CPU time mult = {:.2f}".format(linear_time_mult))
+        convol_time_mult = speed_calculator.calc_convol_time_mult()
         print("Convol CPU time mult = {:.2f}".format(convol_time_mult))
         if torch.cuda.is_available():
-            import pycuda.driver as cuda
-            cuda.init()
-            cuda_device_name = cuda.Device(torch.cuda.current_device()).name()
-            print("Cuda device = {}".format(cuda_device_name))
             linear_time_mult = speed_calculator.calc_linear_time_mult(True)
-            convol_time_mult = speed_calculator.calc_convol_time_mult(True)
             print("Linear GPU time mult = {:.2f}".format(linear_time_mult))
+            convol_time_mult = speed_calculator.calc_convol_time_mult(True)
             print("Convol GPU time mult = {:.2f}".format(convol_time_mult))
         else:
             print("No cuda")
