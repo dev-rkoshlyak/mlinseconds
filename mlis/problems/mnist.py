@@ -9,9 +9,7 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import sys
-sys.path.append('./../utils')
-import solutionmanager as sm
+from ..utils import solutionmanager as sm
 
 class SolutionModel(nn.Module):
     def __init__(self, input_size, output_size):
@@ -27,7 +25,7 @@ class SolutionModel(nn.Module):
     def forward(self, x):
         x = x.view(-1, self.input_size)
         x = self.linear1(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         x = self.linear2(x)
         x = F.log_softmax(x, dim=1)
         return x
@@ -95,12 +93,12 @@ class DataProvider:
         self.number_of_cases = 10
         print("Start data loading...")
         train_dataset = torchvision.datasets.MNIST(
-            './../data/data_mnist', train=True, download=True,
+            './data/data_mnist', train=True, download=True,
             transform=torchvision.transforms.ToTensor()
         )
         trainLoader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset))
         test_dataset = torchvision.datasets.MNIST(
-            './../data/data_mnist', train=False, download=True,
+            './data/data_mnist', train=False, download=True,
             transform=torchvision.transforms.ToTensor()
         )
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=len(test_dataset))

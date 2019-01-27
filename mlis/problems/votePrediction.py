@@ -11,9 +11,7 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import sys
-sys.path.append('./../utils')
-import solutionmanager as sm
+from ..utils import solutionmanager as sm
 
 class SolutionModel(nn.Module):
     def __init__(self, input_size, output_size):

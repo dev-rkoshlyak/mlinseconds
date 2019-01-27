@@ -1,6 +1,4 @@
-# There are random function from 8 inputs and X random inputs added.
-# We split data in 2 parts, on first part you will train and on second
-# part we will test
+# HelloXor is a HelloWorld of Machine Learning.
 import time
 import random
 import torch
@@ -8,26 +6,22 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import sys
-sys.path.append('./../utils')
-import solutionmanager as sm
+from ..utils import solutionmanager as sm
 
 class SolutionModel(nn.Module):
     def __init__(self, input_size, output_size):
         super(SolutionModel, self).__init__()
         self.input_size = input_size
-        self.hidden_size = 32
+        sm.SolutionManager.print_hint("Hint[1]: Xor can not be learned with only one layer")
+        self.hidden_size = 1
         self.linear1 = nn.Linear(input_size, self.hidden_size)
-        self.linear2 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.linear3 = nn.Linear(self.hidden_size, output_size)
+        self.linear2 = nn.Linear(self.hidden_size, output_size)
 
     def forward(self, x):
         x = self.linear1(x)
-        x = F.relu(x)
+        x = torch.sigmoid(x)
         x = self.linear2(x)
-        x = F.relu(x)
-        x = self.linear3(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
 
 class Solution():
@@ -47,7 +41,8 @@ class Solution():
             # No more time left, stop training
             if time_left < 0.1:
                 break
-            optimizer = optim.SGD(model.parameters(), lr=1)
+            sm.SolutionManager.print_hint("Hint[2]: Learning rate is too small", step)
+            optimizer = optim.SGD(model.parameters(), lr=0.00001)
             data = train_data
             target = train_target
             # model.parameters()...gradient set to zero
@@ -61,8 +56,7 @@ class Solution():
             # Total number of needed predictions
             total = target.view(-1).size(0)
             # calculate loss
-            bce_loss = nn.BCELoss()
-            loss = bce_loss(output, target)
+            loss = ((output-target)**2).sum()
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
             loss.backward()
             # print progress of the learning
@@ -71,9 +65,9 @@ class Solution():
             optimizer.step()
             step += 1
         return step
-    
+
     def print_stats(self, step, loss, correct, total):
-        if step % 100 == 0:
+        if step % 1000 == 0:
             print("Step = {} Prediction = {}/{} Error = {}".format(step, correct, total, loss.item()))
 
 ###
@@ -84,58 +78,35 @@ class Solution():
 class Limits:
     def __init__(self):
         self.time_limit = 2.0
-        self.size_limit = 1000000
+        self.size_limit = 100
         self.test_limit = 1.0
 
 class DataProvider:
     def __init__(self):
         self.number_of_cases = 10
 
-    def create_data(self, data_size, input_size, random_input_size, seed):
-        torch.manual_seed(seed)
-        function_size = 1 << input_size
-        function_input = torch.ByteTensor(function_size, input_size)
-        for i in range(function_input.size(0)):
-            fun_ind = i
-            for j in range(function_input.size(1)):
-                input_bit = fun_ind&1
-                fun_ind = fun_ind >> 1
-                function_input[i][j] = input_bit
-        function_output = torch.ByteTensor(function_size).random_(0, 2)
-
-        if data_size % function_size != 0:
-            raise "Data gen error"
-
-        data_input = torch.ByteTensor(data_size, input_size).view(-1, function_size, input_size)
-        target = torch.ByteTensor(data_size).view(-1, function_size)
-        for i in range(data_input.size(0)):
-            data_input[i] = function_input
-            target[i] = function_output
-        data_input = data_input.view(data_size, input_size)
-        target = target.view(data_size)
-        if random_input_size > 0:
-            data_random = torch.ByteTensor(data_size, random_input_size).random_(0, 2)
-            data = torch.cat([data_input, data_random], dim=1)
-        else:
-            data = data_input
-        perm = torch.randperm(data.size(1))
-        data = data[:,perm]
-        perm = torch.randperm(data.size(0))
-        data = data[perm]
-        target = target[perm]
-        return (data.float(), target.view(-1, 1).float())
+    def create_data(self):
+        data = torch.FloatTensor([
+            [0.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [1.0, 1.0]
+            ])
+        target = torch.FloatTensor([
+            [0.0],
+            [1.0],
+            [1.0],
+            [0.0]
+            ])
+        return (data, target)
 
     def create_case_data(self, case):
-        data_size = 256*32
-        input_size = 8
-        random_input_size = min(32, (case-1)*4)
-
-        data, target = self.create_data(2*data_size, input_size, random_input_size, case)
-        return sm.CaseData(case, Limits(), (data[:data_size], target[:data_size]), (data[data_size:], target[data_size:])).set_description("{} inputs and {} random inputs".format(input_size, random_input_size))
+        data, target = self.create_data()
+        return sm.CaseData(case, Limits(), (data, target), (data, target))
 
 class Config:
     def __init__(self):
-        self.max_samples = 10000
+        self.max_samples = 1000
 
     def get_data_provider(self):
         return DataProvider()

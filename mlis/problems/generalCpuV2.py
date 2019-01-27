@@ -1,4 +1,6 @@
-# HelloXor is a HelloWorld of Machine Learning.
+# You need to learn a function with n inputs.
+# For given number of inputs, we will generate random function.
+# Your task is to learn it
 import time
 import random
 import torch
@@ -6,16 +8,14 @@ import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import sys
-sys.path.append('./../utils')
-import solutionmanager as sm
+from ..utils import solutionmanager as sm
 
 class SolutionModel(nn.Module):
     def __init__(self, input_size, output_size):
         super(SolutionModel, self).__init__()
         self.input_size = input_size
-        sm.SolutionManager.print_hint("Hint[1]: Xor can not be learned with only one layer")
-        self.hidden_size = 1
+        sm.SolutionManager.print_hint("Hint[1]: Explore more deep neural networks")
+        self.hidden_size = 10
         self.linear1 = nn.Linear(input_size, self.hidden_size)
         self.linear2 = nn.Linear(self.hidden_size, output_size)
 
@@ -43,13 +43,13 @@ class Solution():
             # No more time left, stop training
             if time_left < 0.1:
                 break
-            sm.SolutionManager.print_hint("Hint[2]: Learning rate is too small", step)
-            optimizer = optim.SGD(model.parameters(), lr=0.00001)
+            optimizer = optim.SGD(model.parameters(), lr=1.0)
             data = train_data
             target = train_target
             # model.parameters()...gradient set to zero
             optimizer.zero_grad()
             # evaluate model => model.forward(data)
+            sm.SolutionManager.print_hint("Hint[2]: Explore other activation functions", step)
             output = model(data)
             # if x < 0.5 predict 0 else predict 1
             predict = output.round()
@@ -58,6 +58,7 @@ class Solution():
             # Total number of needed predictions
             total = target.view(-1).size(0)
             # calculate loss
+            sm.SolutionManager.print_hint("Hint[3]: Explore other loss functions", step)
             loss = ((output-target)**2).sum()
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
             loss.backward()
@@ -67,7 +68,7 @@ class Solution():
             optimizer.step()
             step += 1
         return step
-
+    
     def print_stats(self, step, loss, correct, total):
         if step % 1000 == 0:
             print("Step = {} Prediction = {}/{} Error = {}".format(step, correct, total, loss.item()))
@@ -80,35 +81,33 @@ class Solution():
 class Limits:
     def __init__(self):
         self.time_limit = 2.0
-        self.size_limit = 100
+        self.size_limit = 1000000
         self.test_limit = 1.0
 
 class DataProvider:
     def __init__(self):
-        self.number_of_cases = 10
+        self.number_of_cases = 20
 
-    def create_data(self):
-        data = torch.FloatTensor([
-            [0.0, 0.0],
-            [0.0, 1.0],
-            [1.0, 0.0],
-            [1.0, 1.0]
-            ])
-        target = torch.FloatTensor([
-            [0.0],
-            [1.0],
-            [1.0],
-            [0.0]
-            ])
-        return (data, target)
+    def create_data(self, input_size, seed):
+        random.seed(seed)
+        data_size = 1 << input_size
+        data = torch.FloatTensor(data_size, input_size)
+        target = torch.FloatTensor(data_size)
+        for i in range(data_size):
+            for j in range(input_size):
+                input_bit = (i>>j)&1
+                data[i,j] = float(input_bit)
+            target[i] = float(random.randint(0, 1))
+        return (data, target.view(-1, 1))
 
     def create_case_data(self, case):
-        data, target = self.create_data()
-        return sm.CaseData(case, Limits(), (data, target), (data, target))
+        input_size = min(7+case, 11)
+        data, target = self.create_data(input_size, case)
+        return sm.CaseData(case, Limits(), (data, target), (data, target)).set_description("{} inputs".format(input_size))
 
 class Config:
     def __init__(self):
-        self.max_samples = 1000
+        self.max_samples = 10000
 
     def get_data_provider(self):
         return DataProvider()

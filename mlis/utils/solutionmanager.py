@@ -4,50 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from contextlib import contextmanager
-
-class CpuSpeedModel(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(CpuSpeedModel, self).__init__()
-        hidden_size = 100
-        self.linear1 = nn.Linear(input_size, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.linear3 = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        x = self.linear1(x)
-        x = torch.sigmoid(x)
-        x = self.linear2(x)
-        x = torch.sigmoid(x)
-        x = self.linear3(x)
-        x = torch.sigmoid(x)
-        return x
-
-class CpuSpeed:
-    def calc_time_mult(self):
-        batch_size = 256
-        number_of_batches = 100
-        input_size = 10
-        output_size = 10
-        model = CpuSpeedModel(input_size, output_size)
-        data = torch.FloatTensor(batch_size*number_of_batches, input_size)
-        target = torch.FloatTensor(batch_size*number_of_batches, output_size)
-        torch.manual_seed(1)
-        data.uniform_(-1.0, 1.0)
-        target.uniform_(-1.0, 1.0)
-
-        start_time = time.time()
-        optimizer = optim.SGD(model.parameters(), lr=0.00001)
-        for ind in range(number_of_batches):
-            data_batch = data[batch_size*ind:batch_size*(ind+1)]
-            target_batch = target[batch_size*ind:batch_size*(ind+1)]
-            optimizer.zero_grad()
-            output = model(data_batch)
-            loss = F.mse_loss(output, target_batch)
-            loss.backward()
-            # optimizer.step()
-        end_time = time.time()
-        steps_per_second = number_of_batches/(end_time-start_time)
-        return steps_per_second/1200.0
+from . import speedtest
 
 class CaseData:
     def __init__(self, number, limits, train_data, test_data):
@@ -172,8 +129,8 @@ class SolutionManager():
         output_size = case_data.output_size
         limits = case_data.get_limits()
         data, target = case_data.train_data
-        cpuSpeed = CpuSpeed()
-        time_mult = cpuSpeed.calc_time_mult()
+        speed_calculator = speedtest.SpeedCalculator()
+        time_mult = speed_calculator.calc_linear_time_mult()
         torch.manual_seed(case_data.number)
         timer = Timer(limits.time_limit, time_mult)
         model = solution.create_model(input_size, output_size)
@@ -265,8 +222,8 @@ class SolutionManager():
         return r
 
     def run(self, case_number):
-        cpuSpeed = CpuSpeed()
-        time_mult = cpuSpeed.calc_time_mult()
+        speed_calculator = speedtest.SpeedCalculator()
+        time_mult = speed_calculator.calc_linear_time_mult()
         print("Local CPU time mult = {:.2f}".format(time_mult))
         data_provider = self.config.get_data_provider()
         if case_number == -1:
