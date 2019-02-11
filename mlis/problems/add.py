@@ -75,7 +75,7 @@ class Solution():
                 # Number of correct predictions
                 correct = target.eq(predict.data.view_as(target)).long().sum().item()
                 # Total number of needed predictions
-                total = target.data.size(0)
+                total = predict.view(-1).size(0)
                 # print progress of the learning
                 self.print_stats(step, loss, correct, total)
         return step

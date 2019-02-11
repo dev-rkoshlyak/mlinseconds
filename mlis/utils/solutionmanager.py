@@ -101,23 +101,11 @@ class SolutionManager():
             data = self.sampleData(data, self.config.max_samples)
             target = self.sampleData(target, self.config.max_samples)
             output = model(data)
-            try:
-                predict = model.calc_predict(output)
-            except AttributeError:
-                if output[0].size()[0] == 1:
-                    predict = output.round()
-                else:
-                    predict = output.max(1, keepdim=True)[1]
             # Number of correct predictions
-            correct = target.eq(predict.data.view_as(target)).long().sum()
-            total = target.view(-1).size(0)
-            try:
-                loss = model.calc_loss(output, target)
-            except AttributeError:
-                if output[0].size(0) == 1:
-                    loss = F.mse_loss(output, target)
-                else:
-                    loss = F.nll_loss(output, target)
+            predict = model.calc_predict(output)
+            loss = model.calc_loss(output, target)
+            correct = predict.eq(target.view_as(predict)).long().sum()
+            total = predict.view(-1).size(0)
             return {
                     'loss': loss.item(),
                     'correct': correct.item(),

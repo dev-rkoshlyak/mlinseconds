@@ -28,8 +28,17 @@ class SolutionModel(nn.Module):
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
         return x
+
+    def calc_loss(self, output, target):
+        bce_loss = nn.BCELoss()
+        loss = bce_loss(output, target)
+        return loss
+
+    def calc_predict(self, output):
+        predict = output.round()
+        return predict
 
 class Solution():
     def __init__(self):
@@ -56,14 +65,13 @@ class Solution():
             # evaluate model => model.forward(data)
             output = model(data)
             # if x < 0.5 predict 0 else predict 1
-            predict = output.round()
+            predict = model.calc_predict(output)
             # Number of correct predictions
             correct = predict.eq(target.view_as(predict)).long().sum().item()
             # Total number of needed predictions
-            total = target.view(-1).size(0)
+            total = predict.view(-1).size(0)
             # calculate loss
-            bce_loss = nn.BCELoss()
-            loss = bce_loss(output, target)
+            loss = model.calc_loss(output, target)
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
             loss.backward()
             # print progress of the learning

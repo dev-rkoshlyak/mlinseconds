@@ -30,6 +30,14 @@ class SolutionModel(nn.Module):
         x = F.log_softmax(x, dim=1)
         return x
 
+    def calc_loss(self, output, target):
+        loss = F.nll_loss(output, target)
+        return loss
+
+    def calc_predict(self, output):
+        predict = output.max(1, keepdim=True)[1]
+        return predict
+
 class Solution():
     def __init__(self):
         self = self
@@ -57,13 +65,13 @@ class Solution():
             sm.SolutionManager.print_hint("Hint[4]: Experement with other activation fuctions", step)
             output = model(data)
             # get the index of the max probability
-            predict = output.max(1, keepdim=True)[1]
+            predict = model.calc_predict(output)
             # Number of correct predictions
             correct = predict.eq(target.view_as(predict)).long().sum().item()
             # Total number of needed predictions
-            total = target.view(-1).size(0)
+            total = predict.view(-1).size(0)
             # calculate loss
-            loss = F.nll_loss(output, target)
+            loss = model.calc_loss(output, target)
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
             loss.backward()
             # print progress of the learning
