@@ -70,7 +70,7 @@ class Solution():
         self.layers_number = 3
         self.hidden_size = 30
         # FIX ME:) But you can change only activation function
-        self.do_norm = True
+        self.do_norm = False
         self.layers_number = 8
         #self.learning_rate_grid = [0.04, 0.05, 0.06]
         #self.momentum_grid = [0.799, 0.8, 0.801]

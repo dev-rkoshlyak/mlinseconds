@@ -120,6 +120,8 @@ class SolutionManager():
         speed_calculator = speedtest.SpeedCalculator()
         time_mult = speed_calculator.calc_linear_time_mult()
         torch.manual_seed(case_data.number)
+        if hasattr(case_data, 'manual_seed'):
+            torch.manual_seed(case_data.manual_seed)
         timer = Timer(limits.time_limit, time_mult)
         model = solution.create_model(input_size, output_size)
         context = TrainingContext(case_data, timer)

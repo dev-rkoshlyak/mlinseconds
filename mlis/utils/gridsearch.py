@@ -1,5 +1,5 @@
 import random
-from tensorboardX import SummaryWriter
+import torch
 
 class GridSearch():
     GRID_LIST_SUFFIX = '_grid'
@@ -16,11 +16,6 @@ class GridSearch():
     def set_enabled(self, enabled):
         self.enabled = enabled
         return self
-
-    def get_writer(self):
-        if self.writer is None:
-            self.writer = SummaryWriter()
-        return self.writer
 
     def get_grid_attributes(self, solution):
         s = solution
@@ -71,6 +66,26 @@ class GridSearch():
         for attr, attr_value in grid_choice.items():
             setattr(self.solution, attr, attr_value)
 
+    def add_result(self, name, value):
+        if not hasattr(self, 'results_cache'):
+            self.results_cache = {}
+        if name not in self.results_cache:
+            self.results_cache[name] = {}
+        if self.choice_str not in self.results_cache[name]:
+            self.results_cache[name][self.choice_str] = []
+        self.results_cache[name][self.choice_str].append(value)
+
+    def get_results(self, name):
+        return self.results_cache[name][self.choice_str]
+
+    def get_stats(self, name):
+        results = self.get_results(name)
+        t = torch.FloatTensor(results)
+        return t.mean().item(), t.std().item()
+
+    def get_all_results(self, name):
+        return self.results_cache[name]
+
     def search_model(self, case_data, solution, solution_manager):
         if self.enabled:
             grid_attributes = self.get_grid_attributes(self.solution)
@@ -79,20 +94,27 @@ class GridSearch():
             while len(grid_choice_history) <  grid_size:
                 choice_str, grid_choice = self.get_grid_choice(grid_attributes, grid_choice_history)
                 self.set_grid_choice(choice_str, grid_choice)
-                solution_manager.train_model(solution, case_data)
+                if hasattr(solution, 'iter_number'):
+                    for it in range(solution.iter_number):
+                        solution.iter = it
+                        case_data.manual_seed = it
+                        solution_manager.train_model(solution, case_data)
+                else:
+                    solution_manager.train_model(solution, case_data)
+
                 grid_choice_history[choice_str] = True
             print(solution_manager.accepted_string("[SEARCH COMPLETED]"))
             print("Specify case_number, if you want to search over other case data")
             exit(0)
 
-    def log_step_value(self, name, value, step):
+    def log_step_value(self, writer, name, value, step):
         if self.enabled:
             if type(value) == dict:
                 values = {self.choice_str + GridSearch.GRID_PARAM_SEPARATOR + key : val for key, val in value.items()}
             else:
                 values = {self.choice_str: value}
 
-            self.get_writer().add_scalars(name, values, step)
+            writer.add_scalars(name, values, step)
 
     @classmethod
     def run_case(self, case_data, solution, solution_manager):
