@@ -60,10 +60,14 @@ class TrainingContext():
         self.case_data = case_data
         self.timer = timer
         self.case_data_accessed = False
+        self.step = 0
 
     def get_case_data(self):
         self.case_data_accessed = True
         return self.case_data
+
+    def increase_step(self):
+        self.step += 1
 
     def get_timer(self):
         return self.timer
@@ -80,8 +84,8 @@ class SolutionManager():
     ACCEPTED_GREEN = '\033[92m'
     REJECTED_RED = '\033[91m'
     END_COLOR = '\033[0m'
-    def __init__(self, config):
-        self.config = config
+    def __init__(self):
+        self = self
 
     def calc_model_size(self, model):
         modelSize = 0
@@ -96,53 +100,48 @@ class SolutionManager():
         data = data.view(tuple(dataSize))
         return data
 
-    def calc_model_stats(self, model, data, target):
+    def calc_model_stats(self, config, model, data, target):
         with torch.no_grad():
-            data = self.sampleData(data, self.config.max_samples)
-            target = self.sampleData(target, self.config.max_samples)
+            data = self.sampleData(data, config.max_samples)
+            target = self.sampleData(target, config.max_samples)
             output = model(data)
             # Number of correct predictions
             predict = model.calc_predict(output)
-            loss = model.calc_loss(output, target)
+            error = model.calc_error(output, target)
             correct = predict.eq(target.view_as(predict)).long().sum()
             total = predict.view(-1).size(0)
             return {
-                    'loss': loss.item(),
+                    'error': error.item(),
                     'correct': correct.item(),
                     'total': total
                     }
 
-    def train_model(self, solution, case_data):
+    def train_model(self, init_seed, solution, case_data):
         input_size = case_data.input_size
         output_size = case_data.output_size
         limits = case_data.get_limits()
         data, target = case_data.train_data
         speed_calculator = speedtest.SpeedCalculator()
         time_mult = speed_calculator.calc_linear_time_mult()
-        torch.manual_seed(case_data.number)
-        if hasattr(case_data, 'manual_seed'):
-            torch.manual_seed(case_data.manual_seed)
         timer = Timer(limits.time_limit, time_mult)
-        model = solution.create_model(input_size, output_size)
+        # We need to init random system, used for multiple runs
+        torch.manual_seed(init_seed)
         context = TrainingContext(case_data, timer)
-        step = solution.train_model(model, data, target, context)
+        model = solution.train_model(data, target, context)
         execution_time = timer.get_execution_time()
         reject_reason = context.get_reject_reason()
-        return step, execution_time, reject_reason, model
+        return context.step, execution_time, reject_reason, model
 
-    def run_case(self, case_data):
-        solution = self.config.get_solution()
-        # grid search integration
-        if '__grid_search__' in dir(solution) is not None:
-            solution.__grid_search__.search_model(case_data, solution, self)
-
-        step, execution_time, reject_reason, model = self.train_model(solution, case_data)
+    def run_case(self, config, case_data):
+        solution = config.get_solution()
+        init_seed = case_data.number
+        step, execution_time, reject_reason, model = self.train_model(init_seed, solution, case_data)
         model_size = self.calc_model_size(model)
         model.eval()
         data, target = case_data.train_data
-        train_stat = self.calc_model_stats(model, data, target)
+        train_stat = self.calc_model_stats(config, model, data, target)
         data, target = case_data.test_data
-        test_stat = self.calc_model_stats(model, data, target)
+        test_stat = self.calc_model_stats(config, model, data, target)
         return {
                 'case': case_data.number,
                 'step': step,
@@ -181,21 +180,21 @@ class SolutionManager():
         size = r['size']
         time = r['time']
         reject_reason = r['reject_reason']
-        train_loss = r['trainStat']['loss']
+        train_error = r['trainStat']['error']
         train_correct = r['trainStat']['correct']
         train_total = r['trainStat']['total']
         train_ration = train_correct/float(train_total)
-        test_loss = r['testStat']['loss']
+        test_error = r['testStat']['error']
         test_correct = r['testStat']['correct']
         test_total = r['testStat']['total']
         test_ratio = test_correct/float(test_total)
 
         print("Case #{}[{}] Step={} Size={}/{} Time={:.1f}/{:.1f}".format(
             case, description, step, size, limits.size_limit, time, limits.time_limit))
-        print("Train correct/total={}/{} Ratio/limit={:.2f}/{:.2f} Loss={}".format(
-            train_correct, train_total, train_ration, limits.test_limit, train_loss))
-        print("Test  correct/total={}/{} Ratio/limit={:.2f}/{:.2f} Loss={}".format(
-            test_correct, test_total, test_ratio, limits.test_limit, test_loss))
+        print("Train correct/total={}/{} Ratio/limit={:.2f}/{:.2f} Error={}".format(
+            train_correct, train_total, train_ration, limits.test_limit, train_error))
+        print("Test  correct/total={}/{} Ratio/limit={:.2f}/{:.2f} Error={}".format(
+            test_correct, test_total, test_ratio, limits.test_limit, test_error))
         r['accepted'] = False
         if size > limits.size_limit:
             print(self.rejected_string("[REJECTED]")+": MODEL IS TOO BIG: Size={} Size Limit={}".format(size, limits.size_limit))
@@ -211,11 +210,11 @@ class SolutionManager():
 
         return r
 
-    def run(self, case_number):
+    def run(self, config, case_number):
         speed_calculator = speedtest.SpeedCalculator()
         time_mult = speed_calculator.calc_linear_time_mult()
         print("Local CPU time mult = {:.2f}".format(time_mult))
-        data_provider = self.config.get_data_provider()
+        data_provider = config.get_data_provider()
         if case_number == -1:
             casses = [i+1 for i in range(data_provider.number_of_cases)]
         else:
@@ -224,7 +223,7 @@ class SolutionManager():
         case_limits = []
         for case in casses:
             case_data = data_provider.create_case_data(case)
-            case_result = self.run_case(case_data)
+            case_result = self.run_case(config, case_data)
             case_result['description'] = case_data.description
             case_result = self.evaluate_result(case_data, case_result)
             if case_result['accepted'] == False:

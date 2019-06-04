@@ -1,2 +1,4 @@
 #!/bin/sh
-docker run -it -p 6006:6006 -v ~/ml/mlinseconds:/mlinseconds -w /mlinseconds --rm pytorch
+PROJECT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. >/dev/null 2>&1 && pwd )"
+echo Project dir: $PROJECT_DIR
+docker run -it -v $PROJECT_DIR:/mlinseconds -w /mlinseconds --rm pytorch

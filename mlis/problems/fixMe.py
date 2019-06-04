@@ -55,7 +55,7 @@ class SolutionModel(nn.Module):
                 x = torch.sigmoid(x)
         return x
 
-    def calc_loss(self, output, target):
+    def calc_error(self, output, target):
         loss = nn.BCELoss()
         return loss(output, target)
 
@@ -72,14 +72,14 @@ class Solution():
         # FIX ME:) But you can change only activation function
         self.do_norm = False
         self.layers_number = 8
-        #self.learning_rate_grid = [0.04, 0.05, 0.06]
-        #self.momentum_grid = [0.799, 0.8, 0.801]
+        self.learning_rate_grid = [0.005, 0.05, 0.5]
+        self.momentum_grid = [0.7, 0.8, 0.9]
         #self.layers_number_grid = [1,2,3,4,5,6,7,8]
         #self.hidden_size_grid = [20, 30, 40]
         #self.do_norm_grid = [True, False]
         self.iter = 0
         self.iter_number = 100
-        self.grid_search = gs.GridSearch(self).set_enabled(False)
+        self.grid_search = None
 
     def create_model(self, input_size, output_size):
         return SolutionModel(input_size, output_size, self)
@@ -92,51 +92,46 @@ class Solution():
             same = MyActivation.apply(x)[:i] == MyActivation.apply(x)[:i]
             assert same.long().sum() == i, "Independent function only"
 
-    # Return number of steps used
-    def train_model(self, model, train_data, train_target, context):
+    # Return trained model
+    def train_model(self, train_data, train_target, context):
         self.check_independence()
-        step = 0
-        # Put model in train mode
-        model.train()
+        model = SolutionModel(train_data.size(1), train_target.size(1), self)
         optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=self.momentum)
         while True:
-            time_left = context.get_timer().get_time_left()
-            # No more time left, stop training
-            if time_left < 0.1:
-                step = math.inf
-                break
-            data = train_data
-            target = train_target
+            # Report step, so we know how many steps
+            context.increase_step()
             # model.parameters()...gradient set to zero
             optimizer.zero_grad()
             # evaluate model => model.forward(data)
-            output = model(data)
+            output = model(train_data)
             # if x < 0.5 predict 0 else predict 1
             predict = model.calc_predict(output)
             # Number of correct predictions
-            correct = predict.eq(target.view_as(predict)).long().sum().item()
+            correct = predict.eq(train_target.view_as(predict)).long().sum().item()
             # Total number of needed predictions
             total = predict.view(-1).size(0)
-            if total == correct:
+            # No more time left or learned everything, stop training
+            time_left = context.get_timer().get_time_left()
+            if time_left < 0.1 or correct == total:
                 break
             # calculate loss
-            loss = model.calc_loss(output, target)
+            error = model.calc_error(output, train_target)
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
-            loss.backward()
+            error.backward()
             # print progress of the learning
-            self.print_stats(step, loss, correct, total)
+            self.print_stats(context.step, error, correct, total)
             # update model: model.parameters() -= lr * gradient
             optimizer.step()
-            step += 1
-        if self.grid_search.enabled:
-            self.grid_search.add_result('step', step)
+
+        if self.grid_search:
+            self.grid_search.add_result('step', context.step)
             if self.iter == self.iter_number-1:
                 print(self.grid_search.choice_str, self.grid_search.get_stats('step'))
-        return step
+        return model
     
-    def print_stats(self, step, loss, correct, total):
-        if step % 100 == 0:
-            print("Step = {} Prediction = {}/{} Error = {}".format(step, correct, total, loss.item()))
+    def print_stats(self, step, error, correct, total):
+        if step % 1000 == 0:
+            print("Step = {} Correct = {}/{} Error = {}".format(step, correct, total, error.item()))
 
 ###
 ###
@@ -181,5 +176,11 @@ class Config:
     def get_solution(self):
         return Solution()
 
-# If you want to run specific case, put number here
-sm.SolutionManager(Config()).run(case_number=-1)
+run_grid_search = False
+# Uncomment next line if you want to run grid search
+#run_grid_search = True
+if run_grid_search:
+    gs.GridSearch().run(Config(), case_number=100, random_order=False, verbose=False)
+else:
+    # If you want to run specific case, put number here
+    sm.SolutionManager().run(Config(), case_number=-1)

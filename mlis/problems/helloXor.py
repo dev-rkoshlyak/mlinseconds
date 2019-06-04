@@ -7,13 +7,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from ..utils import solutionmanager as sm
+from ..utils import gridsearch as gs
 
 class SolutionModel(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, solution):
         super(SolutionModel, self).__init__()
         self.input_size = input_size
-        sm.SolutionManager.print_hint("Hint[1]: Xor can not be learned with only one layer")
-        self.hidden_size = 1
+        sm.SolutionManager.print_hint("Hint[1]: Increase hidden size")
+        self.hidden_size = solution.hidden_size
         self.linear1 = nn.Linear(input_size, self.hidden_size)
         self.linear2 = nn.Linear(self.hidden_size, output_size)
 
@@ -24,63 +25,85 @@ class SolutionModel(nn.Module):
         x = torch.sigmoid(x)
         return x
 
-    def calc_loss(self, output, target):
-        loss = ((output-target)**2).sum()
-        return loss
+    def calc_error(self, output, target):
+        # This is loss function
+        return ((output-target)**2).sum()
 
     def calc_predict(self, output):
-        predict = output.round()
-        return predict
+        # Simple round output to predict value
+        return output.round()
 
 class Solution():
     def __init__(self):
-        self = self
+        # Control speed of learning
+        self.learning_rate = 0.00001
+        # Control number of hidden neurons
+        self.hidden_size = 1
 
-    def create_model(self, input_size, output_size):
-        return SolutionModel(input_size, output_size)
+        # Grid search settings, see grid_search_tutorial
+        self.learning_rate_grid = [0.001, 0.01, 0.1]
+        self.hidden_size_grid = [1, 2, 3]
+        # grid search will initialize this field
+        self.grid_search = None
+        # grid search will initialize this field
+        self.iter = 0
+        # This fields indicate how many times to run with same arguments
+        self.iter_number = 2
 
-    # Return number of steps used
-    def train_model(self, model, train_data, train_target, context):
-        step = 0
-        # Put model in train mode
-        model.train()
+    # Return trained model
+    def train_model(self, train_data, train_target, context):
+        # Uncommend next line to understand grid search
+#        return self.grid_search_tutorial()
+        # Model represent our neural network
+        model = SolutionModel(train_data.size(1), train_target.size(1), self)
+        # Optimizer used for training neural network
+        sm.SolutionManager.print_hint("Hint[2]: Learning rate is too small", context.step)
+        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate)
         while True:
-            time_left = context.get_timer().get_time_left()
-            # No more time left, stop training
-            if time_left < 0.1:
-                break
-            sm.SolutionManager.print_hint("Hint[2]: Learning rate is too small", step)
-            optimizer = optim.SGD(model.parameters(), lr=0.00001)
-            data = train_data
-            target = train_target
+            # Report step, so we know how many steps
+            context.increase_step()
             # model.parameters()...gradient set to zero
             optimizer.zero_grad()
             # evaluate model => model.forward(data)
-            output = model(data)
+            output = model(train_data)
             # if x < 0.5 predict 0 else predict 1
             predict = model.calc_predict(output)
             # Number of correct predictions
-            correct = predict.eq(target.view_as(predict)).long().sum().item()
+            correct = predict.eq(train_target.view_as(predict)).long().sum().item()
             # Total number of needed predictions
             total = predict.view(-1).size(0)
-            # break early
-            if correct == total:
+            # No more time left or learned everything, stop training
+            time_left = context.get_timer().get_time_left()
+            if time_left < 0.1 or correct == total:
                 break
-            # calculate loss
-            loss = model.calc_loss(output, target)
+            # calculate error
+            error = model.calc_error(output, train_target)
             # calculate deriviative of model.forward() and put it in model.parameters()...gradient
-            loss.backward()
+            error.backward()
             # print progress of the learning
-            self.print_stats(step, loss, correct, total)
+            self.print_stats(context.step, error, correct, total)
             # update model: model.parameters() -= lr * gradient
             optimizer.step()
-            step += 1
-        return step
+        return model
 
-    def print_stats(self, step, loss, correct, total):
+    def print_stats(self, step, error, correct, total):
         if step % 1000 == 0:
-            print("Step = {} Prediction = {}/{} Error = {}".format(step, correct, total, loss.item()))
+            print("Step = {} Correct = {}/{} Error = {}".format(step, correct, total, error.item()))
 
+    def grid_search_tutorial(self):
+        # During grid search every possible combination in field_grid, train_model will be called
+        # iter_number times. This can be used for automatic parameters tunning.
+        if self.grid_search:
+            print("[HelloXor] learning_rate={} iter={}".format(self.learning_rate, self.iter))
+            self.grid_search.add_result('iter', self.iter)
+            if self.iter == self.iter_number-1:
+                print("[HelloXor] chose_str={}".format(self.grid_search.choice_str))
+                print("[HelloXor] iters={}".format(self.grid_search.get_results('iter')))
+                stats = self.grid_search.get_stats('iter')
+                print("[HelloXor] Mean={} Std={}".format(stats[0], stats[1]))
+        else:
+            print("Enable grid search: See run_grid_search in the end of file")
+            exit(0)
 ###
 ###
 ### Don't change code after this line
@@ -117,7 +140,7 @@ class DataProvider:
 
 class Config:
     def __init__(self):
-        self.max_samples = 1000
+        self.max_samples = 10000
 
     def get_data_provider(self):
         return DataProvider()
@@ -125,5 +148,11 @@ class Config:
     def get_solution(self):
         return Solution()
 
-# If you want to run specific case, put number here
-sm.SolutionManager(Config()).run(case_number=-1)
+run_grid_search = False
+# Uncomment next line if you want to run grid search
+#run_grid_search = True
+if run_grid_search:
+    gs.GridSearch().run(Config(), case_number=1, random_order=False, verbose=True)
+else:
+    # If you want to run specific case, put number here
+    sm.SolutionManager().run(Config(), case_number=-1)

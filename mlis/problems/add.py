@@ -5,7 +5,6 @@
 # is to sum the two random values whose second dimensions are marked by 1.
 # We split data in 2 parts, on first part you will train and on second
 # part we will test
-import math
 import time
 import random
 import torch
@@ -14,75 +13,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from ..utils import solutionmanager as sm
-
-class SolutionModel(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(SolutionModel, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = 32
-        self.linear1 = nn.Linear(self.input_size * 2, self.hidden_size)
-        self.linear2 = nn.Linear(self.hidden_size, 3)
-
-    def forward(self, x):
-        x = x.view(x.size(0), -1)
-        x = self.linear1(x)
-        x = F.relu(x)
-        x = self.linear2(x)
-        x = F.log_softmax(x, dim=1)
-        return x
-
-    def calc_loss(self, output, target):
-        loss = F.nll_loss(output, target)
-        return loss
-
-    def calc_predict(self, output):
-        predict = output.data.max(1, keepdim=True)[1]
-        return predict
+from ..utils import gridsearch as gs
 
 class Solution():
-    def __init__(self):
-        self.learning_rate = 0.1
-
-    def create_model(self, input_size, output_size):
-        return SolutionModel(input_size, output_size)
-
-    # Return number of steps used
-    def train_model(self, model, train_data, train_target, context):
-        step = 0
-        # Put model in train mode
-        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate)
-        while True:
-            data = train_data
-            target = train_target
-            time_left = context.get_timer().get_time_left()
-            # No more time left, stop training
-            if time_left < 0.1:
-                return step
-            # model.parameters()...gradient set to zero
-            optimizer.zero_grad()
-            # evaluate model => model.forward(data)
-            output = model(data)
-            # calculate loss
-            loss = model.calc_loss(output, target)
-            # calculate deriviative of model.forward() and put it in model.parameters()...gradient
-            loss.backward()
-            # update model: model.parameters() -= lr * gradient
-            optimizer.step()
-            step += 1
-            with torch.no_grad():
-                # get the index of the max probability
-                predict = model.calc_predict(output)
-                # Number of correct predictions
-                correct = target.eq(predict.data.view_as(target)).long().sum().item()
-                # Total number of needed predictions
-                total = predict.view(-1).size(0)
-                # print progress of the learning
-                self.print_stats(step, loss, correct, total)
-        return step
-    
-    def print_stats(self, step, loss, correct, total):
-        if step % 100 == 0:
-            print("Step = {} Prediction = {}/{} Error = {}".format(step, correct, total, loss.item()))
+    # Return trained model
+    def train_model(self, train_data, train_target, context):
+        print("See helloXor for solution template")
+        exit(0)
 
 ###
 ###
@@ -131,5 +68,11 @@ class Config:
     def get_solution(self):
         return Solution()
 
-# If you want to run specific case, put number here
-sm.SolutionManager(Config()).run(case_number=-1)
+run_grid_search = False
+# Uncomment next line if you want to run grid search
+#run_grid_search = True
+if run_grid_search:
+    gs.GridSearch().run(Config(), case_number=1, random_order=False, verbose=False)
+else:
+    # If you want to run specific case, put number here
+    sm.SolutionManager().run(Config(), case_number=-1)
