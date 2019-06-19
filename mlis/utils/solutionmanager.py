@@ -116,13 +116,14 @@ class SolutionManager():
                     'total': total
                     }
 
-    def train_model(self, init_seed, solution, case_data):
+    def train_model(self, init_seed, solution, case_data, time_mult = None):
         input_size = case_data.input_size
         output_size = case_data.output_size
         limits = case_data.get_limits()
         data, target = case_data.train_data
-        speed_calculator = speedtest.SpeedCalculator()
-        time_mult = speed_calculator.calc_linear_time_mult()
+        if time_mult is None:
+            speed_calculator = speedtest.SpeedCalculator()
+            time_mult = speed_calculator.calc_linear_time_mult()
         timer = Timer(limits.time_limit, time_mult)
         # We need to init random system, used for multiple runs
         torch.manual_seed(init_seed)
