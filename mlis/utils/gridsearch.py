@@ -5,6 +5,7 @@ import sys
 import torch
 import inspect
 import collections
+import pandas as pd
 from . import solutionmanager as sm
 from . import speedtest
 
@@ -44,10 +45,43 @@ class ResultsData():
         file_pi = open(file_name, 'wb')
         pickle.dump(self, file_pi)
 
+    def get_columns(self):
+        return list(iter(self.grid_attributes.keys()))
+
+    def get_value_types(self):
+        columns = []
+        columns_dict = {}
+        for key, value in self.results_values.items():
+            for column, _ in value.items():
+                if column not in columns_dict:
+                    columns.append(column)
+                    columns_dict[column] = True
+        return columns
+
+    def get_dataframe(self):
+        columns_grid = self.get_columns()
+        value_types = self.get_value_types()
+        columns = columns_grid + ['type', 'value']
+
+        data = []
+        for key, values in self.results_values.items():
+            choices = self.results_choices[key]
+            datum = [choices[column] for column in columns_grid]
+            for value_type in value_types:
+                for _, value in values[value_type].items():
+                    datum_all = datum.copy()
+                    datum_all.append(value_type)
+                    datum_all.append(value)
+                    data.append(datum_all)
+
+        df = pd.DataFrame(data, columns=columns)
+        return df
+
     @staticmethod
     def load(file_name):
         if os.path.isfile(file_name):
             return pickle.load(open(file_name, 'rb'))
+        print("[WARNING] file with data not exists, return empty results data")
         return ResultsData()
 
     @staticmethod
