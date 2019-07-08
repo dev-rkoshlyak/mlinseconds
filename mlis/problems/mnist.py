@@ -26,7 +26,7 @@ class Solution():
 class Limits:
     def __init__(self):
         self.time_limit = 2.0
-        self.size_limit = 1000000
+        self.size_limit = 25000
         self.test_limit = 0.95
 
 class DataProvider:
