@@ -1,85 +1,12 @@
-import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from contextlib import contextmanager
-from . import speedtest
+from .speed_calculator import SpeedCalculator
+from .training_context import TrainingContext
+from .timer import Timer
 
-class CaseData:
-    def __init__(self, number, limits, train_data, test_data):
-        self.number = number
-        self.limits = limits
-        self.train_data = train_data
-        self.test_data = test_data
-        self.description = None
-        self.input_size = train_data[0][0].view(-1).size()[0]
-        self.output_size = 1
-
-    def set_input_size(self, input_size):
-        self.input_size = input_size
-        return self
-
-    def set_description(self, description):
-        self.description = description
-        return self
-
-    def set_output_size(self, output_size):
-        self.output_size = output_size
-        return self
-
-    def get_limits(self):
-        return self.limits
-
-class Timer():
-    def __init__(self, time_limit, time_mult):
-        self.time_limit = time_limit
-        self.time_mult = time_mult
-        self.start_time = time.time()
-        self.pause_time = 0.0
-
-    @contextmanager
-    def pause(self):
-        pause_start = time.time()
-        yield None
-        pause_end = time.time()
-        self.pause_time += pause_end-pause_start
-
-    def get_time_left(self):
-        return self.time_limit - self.get_execution_time()
-
-    def get_execution_time(self):
-        return (time.time() - self.start_time - self.pause_time) * self.time_mult
-
-    def get_pause_time(self):
-        return self.pause_time
-
-
-class TrainingContext():
-    def __init__(self, case_data, timer):
-        self.case_data = case_data
-        self.timer = timer
-        self.case_data_accessed = False
-        self.step = 0
-
-    def get_case_data(self):
-        self.case_data_accessed = True
-        return self.case_data
-
-    def increase_step(self):
-        self.step += 1
-
-    def get_timer(self):
-        return self.timer
-
-    def get_reject_reason(self):
-        if self.timer.pause_time > 0.0:
-            return "Timer paused"
-        if self.case_data_accessed:
-            return "Case data accessed"
-        return None
-
-class SolutionManager():
+class SolutionTester():
     HINT_YELLOW = '\033[93m'
     ACCEPTED_GREEN = '\033[92m'
     REJECTED_RED = '\033[91m'
@@ -93,7 +20,7 @@ class SolutionManager():
             modelSize += param.view(-1).size()[0]
         return modelSize
 
-    def sampleData(self, data, max_samples):
+    def sampleData(self, data, max_samples = 1000):
         dataSize = list(data.size())
         data = data.view(dataSize[0], -1)[:max_samples,:]
         dataSize[0] = min(dataSize[0], max_samples)
@@ -102,8 +29,8 @@ class SolutionManager():
 
     def calc_model_stats(self, config, model, data, target):
         with torch.no_grad():
-            data = self.sampleData(data, config.max_samples)
-            target = self.sampleData(target, config.max_samples)
+            data = self.sampleData(data)
+            target = self.sampleData(target)
             output = model(data)
             # Number of correct predictions
             predict = model.calc_predict(output)
@@ -113,30 +40,23 @@ class SolutionManager():
             return {
                     'error': error.item(),
                     'correct': correct.item(),
-                    'total': total
+                    'total': total,
+                    'accuracy': correct.item()/total,
                     }
 
-    def train_model(self, init_seed, solution, case_data, time_mult = None):
-        input_size = case_data.input_size
-        output_size = case_data.output_size
-        limits = case_data.get_limits()
-        data, target = case_data.train_data
-        if time_mult is None:
-            speed_calculator = speedtest.SpeedCalculator()
-            time_mult = speed_calculator.calc_linear_time_mult()
-        timer = Timer(limits.time_limit, time_mult)
+    def train_model(self, solution, train_data, context):
         # We need to init random system, used for multiple runs
-        torch.manual_seed(init_seed)
-        context = TrainingContext(case_data, timer)
-        model = solution.train_model(data, target, context)
-        execution_time = timer.get_execution_time()
+        torch.manual_seed(context.run_seed)
+        model = solution.train_model(*train_data, context)
+        execution_time = context.timer.get_execution_time()
         reject_reason = context.get_reject_reason()
         return context.step, execution_time, reject_reason, model
 
     def run_case(self, config, case_data):
         solution = config.get_solution()
-        init_seed = case_data.number
-        step, execution_time, reject_reason, model = self.train_model(init_seed, solution, case_data)
+        run_seed = case_data.number
+        context = None
+        step, execution_time, reject_reason, model = self.train_model(solution, context)
         model_size = self.calc_model_size(model)
         model.eval()
         data, target = case_data.train_data
@@ -153,24 +73,56 @@ class SolutionManager():
                 'testStat': test_stat
                 }
 
+    def run_case_from_test_config(self, config, test_config):
+        data_provider = config.get_data_provider()
+        solution = config.get_solution()
+        case_data = data_provider.create_case_data(test_config)
+        limits = case_data.get_limits()
+        time_mult = 1.0
+        timer = Timer(limits.time_limit, time_mult)
+        context = TrainingContext(case_data.run_seed, timer)
+        step, execution_time, reject_reason, model = self.train_model(solution, case_data.train_data, context)
+        model_size = self.calc_model_size(model)
+        model.eval()
+        data, target = case_data.train_data
+        train_stat = self.calc_model_stats(config, model, data, target)
+        data, target = case_data.test_data
+        test_stat = self.calc_model_stats(config, model, data, target)
+        return {
+            'modelSize': model_size,
+            'trainingSteps': step,
+            'trainingTime': execution_time,
+            'evaluationTime': 3.0,
+            'trainError': train_stat['error'],
+            'trainCorrect': train_stat['correct'],
+            'trainTotal': train_stat['total'],
+            'trainAccuracy': train_stat['accuracy'],
+            'trainMetric': 3.0,
+            'testError': test_stat['error'],
+            'testCorrect': test_stat['correct'],
+            'testTotal': test_stat['total'],
+            'testAccuracy': test_stat['accuracy'],
+            'testMetric': 3.0,
+        }
+
     @classmethod
     def colored_string(self, s, color):
-        return color+s+SolutionManager.END_COLOR
+        return color+s+SolutionTester.END_COLOR
 
     @classmethod
     def print_hint(self, s, step=0):
         if step==0:
-            print(SolutionManager.colored_string(s, SolutionManager.HINT_YELLOW))
+            print(SolutionTester.colored_string(s, SolutionTester.HINT_YELLOW))
 
 
     def hint_string(self, s):
-        return self.colored_string(s, SolutionManager.HINT_YELLOW)
+        return self.colored_string(s, SolutionTester.HINT_YELLOW)
 
     def rejected_string(self, s):
-        return self.colored_string(s, SolutionManager.REJECTED_RED)
+        return self.colored_string(s, SolutionTester.REJECTED_RED)
 
     def accepted_string(self, s):
-        return self.colored_string(s, SolutionManager.ACCEPTED_GREEN)
+        return self.colored_string(s, SolutionTester.ACCEPTED_GREEN)
 
     def evaluate_result(self, case_data, case_result):
         limits = case_data.get_limits()
@@ -212,7 +164,7 @@ class SolutionManager():
         return r
 
     def run(self, config, case_number):
-        speed_calculator = speedtest.SpeedCalculator()
+        speed_calculator = SpeedCalculator()
         time_mult = speed_calculator.calc_linear_time_mult()
         print("Local CPU time mult = {:.2f}".format(time_mult))
         data_provider = config.get_data_provider()

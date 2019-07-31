@@ -1,0 +1,1 @@
+{"modelSize": 13, "trainingSteps": 502, "trainingTime": 0.1866741180419922, "evaluationTime": 3.0, "trainError": 0.5760026574134827, "trainCorrect": 4, "trainTotal": 4, "trainAccuracy": 1.0, "trainMetric": 3.0, "testError": 0.5760026574134827, "testCorrect": 4, "testTotal": 4, "testAccuracy": 1.0, "testMetric": 3.0}
