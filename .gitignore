@@ -1,8 +1,0 @@
-.*
-*.pyc
-*.ipynb
-__pycache__
-data
-mlis/problems/runs
-solutions
-research
